@@ -8,8 +8,17 @@ import time
 from typing import List, Dict, Any
 from contextlib import asynccontextmanager
 
+
+# Links extraction packages
+from langchain_community.document_loaders import PyPDFLoader
+from PyPDF2 import PdfReader
+from PyPDF2.generic import IndirectObject
+
+
 from langchain_core.documents import Document
-from open_webui.env import GLOBAL_LOG_LEVEL
+from open_webui.env import SRC_LOG_LEVELS, GLOBAL_LOG_LEVEL
+from PyPDF2 import PdfReader
+from PyPDF2.generic import IndirectObject
 
 logging.basicConfig(stream=sys.stdout, level=GLOBAL_LOG_LEVEL)
 log = logging.getLogger(__name__)
@@ -319,6 +328,31 @@ class MistralLoader:
         log.info(f"File uploaded successfully. File ID: {file_id}")
         return file_id
 
+    def _extract_links(self) -> dict: 
+        links_by_page = {}
+        try:
+            reader = PdfReader(self.file_path)
+            for page_number, page in enumerate(reader.pages, start=1):
+                annotations = page.get("/Annots", [])
+                if isinstance(annotations, IndirectObject):
+                    annotations = [annotations]
+                page_links = []
+                for annot_ref in annotations:
+                    annot = annot_ref.get_object()
+                    action = annot.get("/A")
+                    if isinstance(action, IndirectObject):
+                        action = action.get_object()
+                    if isinstance(action, dict):
+                        uri = action.get("/URI")
+                        if uri:
+                            page_links.append(uri)
+                if page_links:
+                    links_by_page[page_number] = page_links
+        except Exception as e:
+            log.warning(f"Erreur lors de l'extraction des liens PDF : {e}")
+        return links_by_page
+
+
     def _get_signed_url(self, file_id: str) -> str:
         """Retrieves a temporary signed URL for the uploaded file (sync version)."""
         log.info(f"Getting signed URL for file ID: {file_id}")
@@ -513,7 +547,7 @@ class MistralLoader:
             yield session
 
     def _process_results(self, ocr_response: Dict[str, Any]) -> List[Document]:
-        """Process OCR results into Document objects with enhanced metadata and memory efficiency."""
+        """Process OCR results into Document objects with hyperlinks included in the content."""
         pages_data = ocr_response.get("pages")
         if not pages_data:
             log.warning("No pages found in OCR response.")
@@ -528,10 +562,12 @@ class MistralLoader:
         total_pages = len(pages_data)
         skipped_pages = 0
 
-        # Process pages in a memory-efficient way
+        # Extract hyperlinks from the PDF (native, not OCR)
+        links_by_page = self._extract_links()  # {page_number: [links]}
+
         for page_data in pages_data:
             page_content = page_data.get("markdown")
-            page_index = page_data.get("index")  # API uses 0-based index
+            page_index = page_data.get("index")  # 0-based index from API
 
             if page_content is None or page_index is None:
                 skipped_pages += 1
@@ -540,30 +576,36 @@ class MistralLoader:
                 )
                 continue
 
-            # Clean up content efficiently with early exit for empty content
-            if isinstance(page_content, str):
-                cleaned_content = page_content.strip()
-            else:
-                cleaned_content = str(page_content).strip()
+            # Clean up content efficiently
+            cleaned_content = page_content.strip() if isinstance(page_content, str) else str(page_content).strip()
 
             if not cleaned_content:
                 skipped_pages += 1
                 self._debug_log(f"Skipping empty page {page_index}")
                 continue
 
-            # Create document with optimized metadata
+            page_label = page_index + 1  # 1-based label
+
+            # Add links if they exist to the content
+            links = links_by_page.get(page_label)
+            if links:
+                links_text = "\n" + "\n".join(links)
+                cleaned_content += "\n\n" + links_text
+
+            metadata = {
+                "page": page_index,
+                "page_label": page_label,
+                "total_pages": total_pages,
+                "file_name": self.file_name,
+                "file_size": self.file_size,
+                "processing_engine": "mistral-ocr",
+                "content_length": len(cleaned_content),
+            }
+
             documents.append(
                 Document(
                     page_content=cleaned_content,
-                    metadata={
-                        "page": page_index,  # 0-based index from API
-                        "page_label": page_index + 1,  # 1-based label for convenience
-                        "total_pages": total_pages,
-                        "file_name": self.file_name,
-                        "file_size": self.file_size,
-                        "processing_engine": "mistral-ocr",
-                        "content_length": len(cleaned_content),
-                    },
+                    metadata=metadata,
                 )
             )
 
@@ -573,7 +615,6 @@ class MistralLoader:
             )
 
         if not documents:
-            # Case where pages existed but none had valid markdown/index
             log.warning(
                 "OCR response contained pages, but none had valid content/index."
             )
