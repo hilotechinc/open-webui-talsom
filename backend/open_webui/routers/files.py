@@ -25,6 +25,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 from open_webui.constants import ERROR_MESSAGES
 from open_webui.retrieval.vector.factory import VECTOR_DB_CLIENT
+from open_webui.routers.addMessageDocEtPPT import validate_legacy_office_formats
 
 from open_webui.models.channels import Channels
 from open_webui.models.users import Users
@@ -202,6 +203,9 @@ def upload_file_handler(
         # Remove the leading dot from the file extension
         file_extension = file_extension[1:] if file_extension else ""
 
+        # Validation des anciens formats Office (.doc et .ppt)
+        validate_legacy_office_formats(file_extension)
+
         if process and request.app.state.config.ALLOWED_FILE_EXTENSIONS:
             request.app.state.config.ALLOWED_FILE_EXTENSIONS = [
                 ext for ext in request.app.state.config.ALLOWED_FILE_EXTENSIONS if ext
@@ -287,6 +291,10 @@ def upload_file_handler(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=ERROR_MESSAGES.DEFAULT("Error uploading file"),
                 )
+
+    except HTTPException:
+        # Re-lancer les HTTPException pour préserver les messages d'erreur personnalisés
+        raise
 
     except Exception as e:
         log.exception(e)

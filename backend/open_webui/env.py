@@ -93,6 +93,10 @@ if WEBUI_NAME != "Open WebUI":
 
 WEBUI_FAVICON_URL = "https://openwebui.com/favicon.png"
 
+# Custom Logo URLs
+CLIENT_LOGO_URL = os.environ.get("CLIENT_LOGO_URL", "")
+CHAT_LOGO_URL = os.environ.get("CHAT_LOGO_URL", "")
+
 TRUSTED_SIGNATURE_KEY = os.environ.get("TRUSTED_SIGNATURE_KEY", "")
 
 ####################################

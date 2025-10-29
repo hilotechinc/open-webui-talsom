@@ -97,6 +97,8 @@
 	import Tooltip from '../common/Tooltip.svelte';
 	import Sidebar from '../icons/Sidebar.svelte';
 	import Image from '../common/Image.svelte';
+	import { updateFolderById } from '$lib/apis/folders';
+	import AddLogoTalsom from './addLogoTalsom.svelte';
 
 	export let chatIdProp = '';
 
@@ -2548,6 +2550,7 @@
 								>
 									<!-- {$i18n.t('LLMs can make mistakes. Verify important information.')} -->
 								</div>
+								<AddLogoTalsom />
 							</div>
 						{:else}
 							<div class="flex items-center h-full">

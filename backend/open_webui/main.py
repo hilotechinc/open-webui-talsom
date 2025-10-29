@@ -476,6 +476,8 @@ from open_webui.env import (
     AIOHTTP_CLIENT_SESSION_SSL,
     ENABLE_STAR_SESSIONS_MIDDLEWARE,
     ENABLE_PUBLIC_ACTIVE_USERS_COUNT,
+    CLIENT_LOGO_URL,
+    CHAT_LOGO_URL,
 )
 
 
@@ -1971,6 +1973,8 @@ async def get_app_config(request: Request):
                     "pending_user_overlay_title": app.state.config.PENDING_USER_OVERLAY_TITLE,
                     "pending_user_overlay_content": app.state.config.PENDING_USER_OVERLAY_CONTENT,
                     "response_watermark": app.state.config.RESPONSE_WATERMARK,
+                    "client_logo_url": CLIENT_LOGO_URL,
+                    "chat_logo_url": CHAT_LOGO_URL,
                 },
                 "license_metadata": app.state.LICENSE_METADATA,
                 **(

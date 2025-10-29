@@ -64,6 +64,7 @@
 	import VoiceRecording from './MessageInput/VoiceRecording.svelte';
 	import FilesOverlay from './MessageInput/FilesOverlay.svelte';
 	import ToolServersModal from './ToolServersModal.svelte';
+	import { handleUploadError } from './addMessageDocEtPPT.svelte';
 
 	import RichTextInput from '../common/RichTextInput.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
@@ -606,7 +607,7 @@
 					files = files.filter((item) => item?.itemId !== tempItemId);
 				}
 			} catch (e) {
-				toast.error(`${e}`);
+				handleUploadError(e);
 				files = files.filter((item) => item?.itemId !== tempItemId);
 			}
 		} else {
