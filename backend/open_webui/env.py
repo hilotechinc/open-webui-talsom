@@ -97,6 +97,10 @@ WEBUI_FAVICON_URL = "https://openwebui.com/favicon.png"
 CLIENT_LOGO_URL = os.environ.get("CLIENT_LOGO_URL", "")
 CHAT_LOGO_URL = os.environ.get("CHAT_LOGO_URL", "")
 
+# Custom Logo href URLs
+CLIENT_LOGO_HREF_URL = os.environ.get("CLIENT_LOGO_HREF_URL", "")
+CHAT_LOGO_HREF_URL = os.environ.get("CHAT_LOGO_HREF_URL", "")
+
 TRUSTED_SIGNATURE_KEY = os.environ.get("TRUSTED_SIGNATURE_KEY", "")
 
 ####################################

@@ -478,6 +478,8 @@ from open_webui.env import (
     ENABLE_PUBLIC_ACTIVE_USERS_COUNT,
     CLIENT_LOGO_URL,
     CHAT_LOGO_URL,
+    CLIENT_LOGO_HREF_URL,
+    CHAT_LOGO_HREF_URL,
 )
 
 
@@ -1975,6 +1977,8 @@ async def get_app_config(request: Request):
                     "response_watermark": app.state.config.RESPONSE_WATERMARK,
                     "client_logo_url": CLIENT_LOGO_URL,
                     "chat_logo_url": CHAT_LOGO_URL,
+                    "client_logo_href_url": CLIENT_LOGO_HREF_URL,
+                    "chat_logo_href_url": CHAT_LOGO_HREF_URL,
                 },
                 "license_metadata": app.state.LICENSE_METADATA,
                 **(
