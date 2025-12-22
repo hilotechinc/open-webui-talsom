@@ -1,0 +1,142 @@
+name: Sync with Upstream Open WebUI (Merge changes)
+
+on:
+  schedule:
+      # Everyday at 6 UTC
+     - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/open-webui/open-webui.git
+          git fetch upstream
+      
+      - name: Check for new commits
+        id: check
+        run: |
+          UPSTREAM_COMMITS=$(git rev-list HEAD..upstream/main --count)
+          echo "new_commits=$UPSTREAM_COMMITS" >> $GITHUB_OUTPUT
+          echo "Found $UPSTREAM_COMMITS new commits from upstream"
+          
+          # Get list of new commits
+          if [ "$UPSTREAM_COMMITS" != "0" ]; then
+            COMMIT_LIST=$(git log HEAD..upstream/main --oneline | head -20)
+            echo "commit_list<<EOF" >> $GITHUB_OUTPUT
+            echo "$COMMIT_LIST" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Attempt merge
+        id: merge
+        if: steps.check.outputs.new_commits != '0'
+        run: |
+          git checkout main
+          if git merge upstream/main --no-edit; then
+            echo "merge_status=success" >> $GITHUB_OUTPUT
+            echo "Merge successful"
+          else
+            # Get conflicted files
+            CONFLICTS=$(git diff --name-only --diff-filter=U)
+            echo "conflicts<<EOF" >> $GITHUB_OUTPUT
+            echo "$CONFLICTS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            
+            echo "merge_status=conflict" >> $GITHUB_OUTPUT
+            echo "Merge has conflicts"
+            git merge --abort
+          fi
+
+      - name: Push if successful
+        if: steps.merge.outputs.merge_status == 'success'
+        run: |
+          git push origin main
+
+      # Conflict 
+      - name: Notify on conflict
+        if: steps.merge.outputs.merge_status == 'conflict'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: ' Conflit de synchronisation - Action requise',
+              body: `## Conflit détecté
+              
+            **@Franck-Hilotech @EvanTalsom @christopherquenneville** - Un merge manuel est requis.
+            
+            ### Fichiers en conflit :
+            \`\`\`
+            ${{ steps.merge.outputs.conflicts }}
+            \`\`\`
+            
+            ### Comment résoudre :
+            \`\`\`bash
+            git fetch upstream
+            git merge upstream/main
+            # Résoudre les conflits
+            git add .
+            git commit
+            git push origin main
+            \`\`\`
+
+            ---
+            Détecté le : ${new Date().toISOString()}
+            `,
+              labels: ['upstream-conflict']
+            });
+
+      # Success 
+      - name: Notify on success
+        if: steps.merge.outputs.merge_status == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Synchronisation réussie - ${{ steps.check.outputs.new_commits }} commits',
+              body: `## Merge automatique réussi
+              
+            **@Franck-Hilotech @EvanTalsom @christopherquenneville**
+            
+            ### ${{ steps.check.outputs.new_commits }} nouveaux commits mergés :
+            \`\`\`
+            ${{ steps.check.outputs.commit_list }}
+            \`\`\`
+            
+            ---
+            Mergé le : ${new Date().toISOString()}
+            `,
+              labels: ['upstream-sync']
+            });
+
+      - name: Summary
+        run: |
+          echo "## Sync Summary" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.check.outputs.new_commits }}" == "0" ]; then
+            echo "Déjà à jour" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.merge.outputs.merge_status }}" == "success" ]; then
+            echo "${{ steps.check.outputs.new_commits }} commits mergés" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "CONFLIT - Merge manuel requis" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Fail on conflict
+        if: steps.merge.outputs.merge_status == 'conflict'
+        run: exit 1
