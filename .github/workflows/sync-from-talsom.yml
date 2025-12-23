@@ -1,0 +1,114 @@
+name: Sync from Talsom Fork
+
+on:
+  schedule:
+    - cron: '0 7 * * *'  # 7h UTC (1h apres le sync Talsom)
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add Talsom remote
+        run: |
+          git remote add talsom https://github.com/TalsomMtl/open-webui.git
+          git fetch talsom
+
+      - name: Check for new commits from Talsom
+        id: check
+        run: |
+          TALSOM_COMMITS=$(git rev-list HEAD..talsom/main --count)
+          echo "new_commits=$TALSOM_COMMITS" >> $GITHUB_OUTPUT
+          echo "Found $TALSOM_COMMITS new commits from Talsom"
+          
+          if [ "$TALSOM_COMMITS" != "0" ]; then
+            COMMIT_LIST=$(git log HEAD..talsom/main --oneline | head -20)
+            echo "commit_list<<EOF" >> $GITHUB_OUTPUT
+            echo "$COMMIT_LIST" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Merge Talsom changes
+        id: merge
+        if: steps.check.outputs.new_commits != '0'
+        run: |
+          git checkout main
+          if git merge talsom/main --no-edit; then
+            echo "merge_status=success" >> $GITHUB_OUTPUT
+            echo "Merge successful"
+          else
+            CONFLICTS=$(git diff --name-only --diff-filter=U)
+            echo "conflicts<<EOF" >> $GITHUB_OUTPUT
+            echo "$CONFLICTS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            
+            echo "merge_status=conflict" >> $GITHUB_OUTPUT
+            echo "Merge has conflicts"
+            git merge --abort
+          fi
+
+      - name: Push if successful
+        if: steps.merge.outputs.merge_status == 'success'
+        run: |
+          git push origin main
+
+      - name: Notify on conflict
+        if: steps.merge.outputs.merge_status == 'conflict'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Conflit de synchronisation avec Talsom - Action requise',
+              body: `## Conflit detecte
+              
+            Un merge manuel est requis pour synchroniser avec le fork Talsom.
+            
+            ### Fichiers en conflit :
+            \`\`\`
+            ${{ steps.merge.outputs.conflicts }}
+            \`\`\`
+            
+            ### Comment resoudre :
+            \`\`\`bash
+            git remote add talsom https://github.com/TalsomMtl/open-webui.git
+            git fetch talsom
+            git merge talsom/main
+            # Resoudre les conflits
+            git add .
+            git commit
+            git push origin main
+            \`\`\`
+            
+            ---
+            Detecte le : ${new Date().toISOString()}
+            `,
+              labels: ['talsom-sync-conflict']
+            });
+
+      - name: Summary
+        run: |
+          echo "## Sync from Talsom Summary" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.check.outputs.new_commits }}" == "0" ]; then
+            echo "Deja a jour avec Talsom" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.merge.outputs.merge_status }}" == "success" ]; then
+            echo "${{ steps.check.outputs.new_commits }} commits merges depuis Talsom" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "CONFLIT - Merge manuel requis" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Fail on conflict
+        if: steps.merge.outputs.merge_status == 'conflict'
+        run: exit 1
