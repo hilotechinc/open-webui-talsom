@@ -2,8 +2,7 @@ name: Sync with Upstream Open WebUI (Merge changes)
 
 on:
   schedule:
-      # Everyday at 6 UTC
-     - cron: '0 6 * * *'
+    - cron: '0 6 * * *'
   workflow_dispatch:
 
 jobs:
@@ -25,7 +24,7 @@ jobs:
         run: |
           git remote add upstream https://github.com/open-webui/open-webui.git
           git fetch upstream
-      
+
       - name: Check for new commits
         id: check
         run: |
@@ -33,14 +32,17 @@ jobs:
           echo "new_commits=$UPSTREAM_COMMITS" >> $GITHUB_OUTPUT
           echo "Found $UPSTREAM_COMMITS new commits from upstream"
           
-          # Get list of new commits
           if [ "$UPSTREAM_COMMITS" != "0" ]; then
             COMMIT_LIST=$(git log HEAD..upstream/main --oneline | head -20)
             echo "commit_list<<EOF" >> $GITHUB_OUTPUT
             echo "$COMMIT_LIST" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           fi
-       
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
       # Package backup
       - name: Set up Docker Buildx
         if: steps.check.outputs.new_commits != '0'
@@ -61,9 +63,10 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/talsommtl/open-webui:backup-${{ github.run_id }}
-            ghcr.io/talsommtl/open-webui:backup-${{ github.sha }}
-            
+            ghcr.io/talsommtl/open-webui-backup:${{ steps.date.outputs.date }}
+            ghcr.io/talsommtl/open-webui-backup:${{ github.sha }}
+
+      # Merge upstream
       - name: Attempt merge
         id: merge
         if: steps.check.outputs.new_commits != '0'
@@ -73,7 +76,6 @@ jobs:
             echo "merge_status=success" >> $GITHUB_OUTPUT
             echo "Merge successful"
           else
-            # Get conflicted files
             CONFLICTS=$(git diff --name-only --diff-filter=U)
             echo "conflicts<<EOF" >> $GITHUB_OUTPUT
             echo "$CONFLICTS" >> $GITHUB_OUTPUT
@@ -89,7 +91,18 @@ jobs:
         run: |
           git push origin main
 
-      # Conflict 
+      # Cleanup old backups
+      - name: Delete old backup images
+        if: steps.merge.outputs.merge_status == 'success'
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: 'open-webui-backup'
+          package-type: 'container'
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: false
+        continue-on-error: true
+
+      # Notifications
       - name: Notify on conflict
         if: steps.merge.outputs.merge_status == 'conflict'
         uses: actions/github-script@v7
@@ -98,33 +111,37 @@ jobs:
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: ' Conflit de synchronisation - Action requise',
-              body: `## Conflit détecté
+              title: 'Conflit de synchronisation - Action requise',
+              body: `## Conflit detecte
               
             **@Franck-Hilotech @EvanTalsom @christopherquenneville** - Un merge manuel est requis.
+            
+            ### Image backup disponible :
+            \`\`\`
+            ghcr.io/talsommtl/open-webui-backup:${{ steps.date.outputs.date }}
+            \`\`\`
             
             ### Fichiers en conflit :
             \`\`\`
             ${{ steps.merge.outputs.conflicts }}
             \`\`\`
             
-            ### Comment résoudre :
+            ### Comment resoudre :
             \`\`\`bash
             git fetch upstream
             git merge upstream/main
-            # Résoudre les conflits
+            # Resoudre les conflits
             git add .
             git commit
             git push origin main
             \`\`\`
-
+            
             ---
-            Détecté le : ${new Date().toISOString()}
+            Detecte le : ${new Date().toISOString()}
             `,
               labels: ['upstream-conflict']
             });
 
-      # Success 
       - name: Notify on success
         if: steps.merge.outputs.merge_status == 'success'
         uses: actions/github-script@v7
@@ -133,18 +150,23 @@ jobs:
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: 'Synchronisation réussie - ${{ steps.check.outputs.new_commits }} commits',
-              body: `## Merge automatique réussi
+              title: 'Synchronisation reussie - ${{ steps.check.outputs.new_commits }} commits',
+              body: `## Merge automatique reussi
               
             **@Franck-Hilotech @EvanTalsom @christopherquenneville**
             
-            ### ${{ steps.check.outputs.new_commits }} nouveaux commits mergés :
+            ### Image backup (version precedente) :
+            \`\`\`
+            ghcr.io/talsommtl/open-webui-backup:${{ steps.date.outputs.date }}
+            \`\`\`
+            
+            ### ${{ steps.check.outputs.new_commits }} nouveaux commits merges :
             \`\`\`
             ${{ steps.check.outputs.commit_list }}
             \`\`\`
             
             ---
-            Mergé le : ${new Date().toISOString()}
+            Merge le : ${new Date().toISOString()}
             `,
               labels: ['upstream-sync']
             });
@@ -153,13 +175,15 @@ jobs:
         run: |
           echo "## Sync Summary" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.check.outputs.new_commits }}" == "0" ]; then
-            echo "Déjà à jour" >> $GITHUB_STEP_SUMMARY
+            echo "Deja a jour" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ steps.merge.outputs.merge_status }}" == "success" ]; then
-            echo "${{ steps.check.outputs.new_commits }} commits mergés" >> $GITHUB_STEP_SUMMARY
+            echo "${{ steps.check.outputs.new_commits }} commits merges" >> $GITHUB_STEP_SUMMARY
+            echo "Backup: ghcr.io/talsommtl/open-webui-backup:${{ steps.date.outputs.date }}" >> $GITHUB_STEP_SUMMARY
           else
             echo "CONFLIT - Merge manuel requis" >> $GITHUB_STEP_SUMMARY
+            echo "Backup disponible: ghcr.io/talsommtl/open-webui-backup:${{ steps.date.outputs.date }}" >> $GITHUB_STEP_SUMMARY
           fi
-      
+
       - name: Fail on conflict
         if: steps.merge.outputs.merge_status == 'conflict'
         run: exit 1
