@@ -91,6 +91,17 @@ jobs:
         run: |
           git push origin main
 
+      # Build et push :latest after "merge"
+      - name: Build and push latest image (after merge)
+        if: steps.merge.outputs.merge_status == 'success'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/talsommtl/open-webui:latest
+            ghcr.io/talsommtl/open-webui:${{ steps.date.outputs.date }}
+
       # Cleanup old backups
       - name: Delete old backup images
         if: steps.merge.outputs.merge_status == 'success'
