@@ -18,10 +18,10 @@ from PyPDF2.generic import IndirectObject
 from langchain_core.documents import Document
 from open_webui.env import SRC_LOG_LEVELS, GLOBAL_LOG_LEVEL
 from PyPDF2 import PdfReader
+from PyPDF2.generic import IndirectObject
 
 logging.basicConfig(stream=sys.stdout, level=GLOBAL_LOG_LEVEL)
 log = logging.getLogger(__name__)
-log.setLevel(SRC_LOG_LEVELS["RAG"])
 
 
 class MistralLoader:
@@ -38,10 +38,9 @@ class MistralLoader:
     - Enhanced error handling with retryable error classification
     """
 
-    BASE_API_URL = "https://api.mistral.ai/v1"
-
     def __init__(
         self,
+        base_url: str,
         api_key: str,
         file_path: str,
         timeout: int = 300,  # 5 minutes default
@@ -63,6 +62,9 @@ class MistralLoader:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found at {file_path}")
 
+        self.base_url = (
+            base_url.rstrip("/") if base_url else "https://api.mistral.ai/v1"
+        )
         self.api_key = api_key
         self.file_path = file_path
         self.timeout = timeout
@@ -248,7 +250,7 @@ class MistralLoader:
         in a context manager to minimize memory usage duration.
         """
         log.info("Uploading file to Mistral API")
-        url = f"{self.BASE_API_URL}/files"
+        url = f"{self.base_url}/files"
 
         def upload_request():
             # MEMORY OPTIMIZATION: Use context manager to minimize file handle lifetime
@@ -283,7 +285,7 @@ class MistralLoader:
 
     async def _upload_file_async(self, session: aiohttp.ClientSession) -> str:
         """Async file upload with streaming for better memory efficiency."""
-        url = f"{self.BASE_API_URL}/files"
+        url = f"{self.base_url}/files"
 
         async def upload_request():
             # Create multipart writer for streaming upload
@@ -354,7 +356,7 @@ class MistralLoader:
     def _get_signed_url(self, file_id: str) -> str:
         """Retrieves a temporary signed URL for the uploaded file (sync version)."""
         log.info(f"Getting signed URL for file ID: {file_id}")
-        url = f"{self.BASE_API_URL}/files/{file_id}/url"
+        url = f"{self.base_url}/files/{file_id}/url"
         params = {"expiry": 1}
         signed_url_headers = {**self.headers, "Accept": "application/json"}
 
@@ -379,7 +381,7 @@ class MistralLoader:
         self, session: aiohttp.ClientSession, file_id: str
     ) -> str:
         """Async signed URL retrieval."""
-        url = f"{self.BASE_API_URL}/files/{file_id}/url"
+        url = f"{self.base_url}/files/{file_id}/url"
         params = {"expiry": 1}
 
         headers = {**self.headers, "Accept": "application/json"}
@@ -406,7 +408,7 @@ class MistralLoader:
     def _process_ocr(self, signed_url: str) -> Dict[str, Any]:
         """Sends the signed URL to the OCR endpoint for processing (sync version)."""
         log.info("Processing OCR via Mistral API")
-        url = f"{self.BASE_API_URL}/ocr"
+        url = f"{self.base_url}/ocr"
         ocr_headers = {
             **self.headers,
             "Content-Type": "application/json",
@@ -440,7 +442,7 @@ class MistralLoader:
         self, session: aiohttp.ClientSession, signed_url: str
     ) -> Dict[str, Any]:
         """Async OCR processing with timing metrics."""
-        url = f"{self.BASE_API_URL}/ocr"
+        url = f"{self.base_url}/ocr"
 
         headers = {
             **self.headers,
@@ -479,7 +481,7 @@ class MistralLoader:
     def _delete_file(self, file_id: str) -> None:
         """Deletes the file from Mistral storage (sync version)."""
         log.info(f"Deleting uploaded file ID: {file_id}")
-        url = f"{self.BASE_API_URL}/files/{file_id}"
+        url = f"{self.base_url}/files/{file_id}"
 
         try:
             response = requests.delete(
@@ -500,7 +502,7 @@ class MistralLoader:
             async def delete_request():
                 self._debug_log(f"Deleting file ID: {file_id}")
                 async with session.delete(
-                    url=f"{self.BASE_API_URL}/files/{file_id}",
+                    url=f"{self.base_url}/files/{file_id}",
                     headers=self.headers,
                     timeout=aiohttp.ClientTimeout(
                         total=self.cleanup_timeout
