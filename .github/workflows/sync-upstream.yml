@@ -40,7 +40,30 @@ jobs:
             echo "$COMMIT_LIST" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           fi
+       
+      # Package backup
+      - name: Set up Docker Buildx
+        if: steps.check.outputs.new_commits != '0'
+        uses: docker/setup-buildx-action@v3
 
+      - name: Login to GitHub Container Registry
+        if: steps.check.outputs.new_commits != '0'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backup image
+        if: steps.check.outputs.new_commits != '0'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/talsommtl/open-webui:backup-${{ github.run_id }}
+            ghcr.io/talsommtl/open-webui:backup-${{ github.sha }}
+            
       - name: Attempt merge
         id: merge
         if: steps.check.outputs.new_commits != '0'
