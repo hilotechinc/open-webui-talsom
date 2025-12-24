@@ -84,7 +84,7 @@ jobs:
           push: true
           tags: |
             ghcr.io/hilotechinc/open-webui-custom:latest
-            ghcr.io/hilotechinc/open-webui-custom:${{ steps.date.outputs.date }}
+            ghcr.io/hilotechinc/open-webui-talsom:${{ github.sha }}
 
       - name: Summary
         run: |
