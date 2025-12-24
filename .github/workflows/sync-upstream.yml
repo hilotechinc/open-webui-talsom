@@ -1,7 +1,7 @@
 # # Workflow: Sync with Upstream Open WebUI
 # 
-# Synchroniser le fork Talsom avec le repo officiel Open WebUI
-#      et builder les images Docker.
+# But: Synchroniser le fork Talsom avec le repo officiel Open WebUI
+#      et build & push les images Docker.
 #
 # Declencheurs:
 #   - Chaque jour a 6h UTC
@@ -106,8 +106,6 @@ jobs:
         with:
           context: .
           push: true
-          build-args: |
-            NODE_OPTIONS=--max_old_space_size=4096
           tags: |
             ghcr.io/talsommtl/open-webui:latest
             ghcr.io/talsommtl/open-webui:${{ steps.date.outputs.date }}
