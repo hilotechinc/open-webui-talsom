@@ -68,7 +68,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.PAT_TOKEN}}
 
       - name: Build and push backup image (before merge)
         if: steps.check.outputs.new_commits != '0'
