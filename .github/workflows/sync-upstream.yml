@@ -21,6 +21,9 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
     if: github.actor != 'github-actions[bot]'
     steps:
       - name: Checkout
