@@ -106,6 +106,8 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            NODE_OPTIONS=--max_old_space_size=4096
           tags: |
             ghcr.io/talsommtl/open-webui:latest
             ghcr.io/talsommtl/open-webui:${{ steps.date.outputs.date }}
