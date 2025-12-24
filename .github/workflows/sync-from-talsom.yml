@@ -83,8 +83,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/hilotechinc/open-webui-talsom:latest
-            ghcr.io/hilotechinc/open-webui-talsom:${{ steps.date.outputs.date }}
+            ghcr.io/hilotechinc/open-webui-custom:latest
+            ghcr.io/hilotechinc/open-webui-custom:${{ steps.date.outputs.date }}
 
       - name: Summary
         run: |
