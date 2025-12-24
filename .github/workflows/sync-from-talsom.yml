@@ -4,10 +4,17 @@ on:
   schedule:
     - cron: '0 7 * * *'
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
+    permissions:
+      contents: write
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,13 +38,6 @@ jobs:
           TALSOM_COMMITS=$(git rev-list HEAD..talsom/main --count)
           echo "new_commits=$TALSOM_COMMITS" >> $GITHUB_OUTPUT
           echo "Found $TALSOM_COMMITS new commits from Talsom"
-          
-          if [ "$TALSOM_COMMITS" != "0" ]; then
-            COMMIT_LIST=$(git log HEAD..talsom/main --oneline | head -20)
-            echo "commit_list<<EOF" >> $GITHUB_OUTPUT
-            echo "$COMMIT_LIST" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          fi
 
       - name: Merge Talsom changes
         id: merge
@@ -63,6 +63,29 @@ jobs:
         run: |
           git push origin main
 
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.PAT_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/hilotechinc/open-webui-talsom:latest
+            ghcr.io/hilotechinc/open-webui-talsom:${{ steps.date.outputs.date }}
+
       - name: Summary
         run: |
           echo "## Sync from Talsom Summary" >> $GITHUB_STEP_SUMMARY
@@ -70,16 +93,14 @@ jobs:
             echo "Deja a jour avec Talsom" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ steps.merge.outputs.merge_status }}" == "success" ]; then
             echo "${{ steps.check.outputs.new_commits }} commits merges depuis Talsom" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Image Docker :" >> $GITHUB_STEP_SUMMARY
+            echo "ghcr.io/hilotechinc/open-webui-talsom:latest" >> $GITHUB_STEP_SUMMARY
           else
             echo "CONFLIT - Merge manuel requis" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Fichiers en conflit :" >> $GITHUB_STEP_SUMMARY
             echo "${{ steps.merge.outputs.conflicts }}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Comment resoudre :" >> $GITHUB_STEP_SUMMARY
-            echo "git remote add talsom https://github.com/TalsomMtl/open-webui.git" >> $GITHUB_STEP_SUMMARY
-            echo "git fetch talsom" >> $GITHUB_STEP_SUMMARY
-            echo "git merge talsom/main" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Fail on conflict
