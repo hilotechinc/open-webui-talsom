@@ -7,9 +7,7 @@
 #   - Chaque jour a 6h UTC
 #   - Manuellement
 #   - A chaque push sur main
-
 name: Sync with Upstream Open WebUI (Merge changes)
-
 on:
   schedule:
     - cron: '0 6 * * *'
@@ -17,7 +15,6 @@ on:
   push:
     branches:
       - main
-
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -31,17 +28,17 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-
+      
       - name: Setup Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
+      
       - name: Add upstream remote
         run: |
           git remote add upstream https://github.com/open-webui/open-webui.git
           git fetch upstream
-
+      
       - name: Check for new commits
         id: check
         run: |
@@ -55,21 +52,25 @@ jobs:
             echo "$COMMIT_LIST" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           fi
-
+      
       - name: Get current date
         id: date
+        run: echo "date=$(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_OUTPUT
+      
+      - name: Get current date short
+        id: dateshort
         run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-
+      
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
+      
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.PAT_TOKEN}}
-
+      
       - name: Build and push backup image (before merge)
         if: steps.check.outputs.new_commits != '0'
         uses: docker/build-push-action@v5
@@ -77,9 +78,9 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/talsommtl/open-webui-backup:${{ steps.date.outputs.date }}
+            ghcr.io/talsommtl/open-webui-backup:${{ steps.dateshort.outputs.date }}
             ghcr.io/talsommtl/open-webui-backup:${{ github.sha }}
-
+      
       - name: Attempt merge
         id: merge
         if: steps.check.outputs.new_commits != '0'
@@ -98,12 +99,12 @@ jobs:
             echo "Merge has conflicts"
             git merge --abort
           fi
-
+      
       - name: Push if successful
         if: steps.merge.outputs.merge_status == 'success'
         run: |
           git push origin main
-
+      
       - name: Build and push latest image
         uses: docker/build-push-action@v5
         with:
@@ -111,8 +112,8 @@ jobs:
           push: true
           tags: |
             ghcr.io/talsommtl/open-webui:latest
-            ghcr.io/talsommtl/open-webui:${{ steps.date.outputs.date }}
-
+            ghcr.io/talsommtl/open-webui:${{ steps.dateshort.outputs.date }}
+      
       - name: Delete old backup images
         if: steps.merge.outputs.merge_status == 'success'
         uses: actions/delete-package-versions@v5
@@ -122,7 +123,7 @@ jobs:
           min-versions-to-keep: 5
           delete-only-untagged-versions: false
         continue-on-error: true
-
+      
       - name: Summary
         run: |
           echo "## Sync Summary" >> $GITHUB_STEP_SUMMARY
@@ -133,8 +134,13 @@ jobs:
           elif [ "${{ steps.merge.outputs.merge_status }}" == "success" ]; then
             echo "${{ steps.check.outputs.new_commits }} commits upstream merges" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Commits merges :" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "${{ steps.check.outputs.commit_list }}" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Images Docker :" >> $GITHUB_STEP_SUMMARY
-            echo "- Backup: ghcr.io/talsommtl/open-webui-backup:${{ steps.date.outputs.date }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Backup: ghcr.io/talsommtl/open-webui-backup:${{ steps.dateshort.outputs.date }}" >> $GITHUB_STEP_SUMMARY
             echo "- Latest: ghcr.io/talsommtl/open-webui:latest" >> $GITHUB_STEP_SUMMARY
           else
             echo "CONFLIT - Merge manuel requis" >> $GITHUB_STEP_SUMMARY
@@ -143,7 +149,7 @@ jobs:
             echo "${{ steps.merge.outputs.conflicts }}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Backup disponible :" >> $GITHUB_STEP_SUMMARY
-            echo "ghcr.io/talsommtl/open-webui-backup:${{ steps.date.outputs.date }}" >> $GITHUB_STEP_SUMMARY
+            echo "ghcr.io/talsommtl/open-webui-backup:${{ steps.dateshort.outputs.date }}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Comment resoudre :" >> $GITHUB_STEP_SUMMARY
             echo "git fetch upstream" >> $GITHUB_STEP_SUMMARY
@@ -153,7 +159,71 @@ jobs:
             echo "git commit" >> $GITHUB_STEP_SUMMARY
             echo "git push origin main" >> $GITHUB_STEP_SUMMARY
           fi
-
+      
+      # NOTIFICATION EMAIL - CONFLIT
+      - name: Send email on conflict
+        if: failure() || steps.merge.outputs.merge_status == 'conflict'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Open WebUI Sync - Conflit détecté"
+          to: christopherquenneville@users.noreply.github.com,Franck-Hilotech@users.noreply.github.com,EvanTalsom@users.noreply.github.com
+          from: GitHub Actions <${{ secrets.SMTP_USERNAME }}>
+          body: |
+            CONFLIT DE MERGE DÉTECTÉ
+            
+            Repository: ${{ github.repository }}
+            Date: ${{ steps.date.outputs.date }}
+            
+            Fichiers en conflit:
+            ${{ steps.merge.outputs.conflicts }}
+            
+            Backup disponible:
+            ghcr.io/talsommtl/open-webui-backup:${{ steps.dateshort.outputs.date }}
+            
+            Résolution manuelle requise:
+            git fetch upstream
+            git merge upstream/main
+            # Résoudre les conflits
+            git add .
+            git commit
+            git push origin main
+            
+            Détails: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      
+      # NOTIFICATION EMAIL - SUCCÈS
+      - name: Send email on success
+        if: success() && steps.merge.outputs.merge_status == 'success' && steps.check.outputs.new_commits != '0'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Open WebUI Sync - ${{ steps.check.outputs.new_commits }} commits mergés"
+          to: christopherquenneville@users.noreply.github.com,Franck-Hilotech@users.noreply.github.com,EvanTalsom@users.noreply.github.com
+          from: GitHub Actions <${{ secrets.SMTP_USERNAME }}>
+          body: |
+            SYNCHRONISATION RÉUSSIE
+            
+            Repository: ${{ github.repository }}
+            Date: ${{ steps.date.outputs.date }}
+            
+            ${{ steps.check.outputs.new_commits }} commits mergés avec succès
+            
+            Commits mergés:
+            ${{ steps.check.outputs.commit_list }}
+            
+            Images Docker:
+            - Latest: ghcr.io/talsommtl/open-webui:latest
+            - Dated: ghcr.io/talsommtl/open-webui:${{ steps.dateshort.outputs.date }}
+            - Backup: ghcr.io/talsommtl/open-webui-backup:${{ steps.dateshort.outputs.date }}
+            
+            Détails: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      
       - name: Fail on conflict
         if: steps.merge.outputs.merge_status == 'conflict'
         run: exit 1
