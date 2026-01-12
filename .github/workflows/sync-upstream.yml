@@ -144,7 +144,7 @@ jobs:
 
           **Workflow Run:** [Voir les détails](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
-          ### 🔧 Résolution manuelle requise
+          ### Résolution manuelle requise
 
           \`\`\`bash
           git fetch upstream
@@ -155,8 +155,7 @@ jobs:
           git push origin main
           \`\`\`
           Une fois résolu, fermez cette issue." \
-            --label "sync-conflict,urgent" \
-            --assignee "Franck-Hilotech,EvanTalsom"
+            --assignee "franck-hilotech,EvanTalsom"
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
       
