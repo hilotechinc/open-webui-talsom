@@ -36,7 +36,7 @@ jobs:
       
       - name: Add upstream remote
         run: |
-          git remote add upstream https://github.com/open-webui/open-webui.git
+          git remote add upstream https://github.com/open-webui/open-webui.git || True
           git fetch upstream
       
       - name: Check for new commits
@@ -106,6 +106,7 @@ jobs:
           git push origin main
       
       - name: Build and push latest image
+        if: steps.merge.outputs.merge_status == 'success' || steps.check.outputs.new_commits == '0'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -123,6 +124,41 @@ jobs:
           min-versions-to-keep: 5
           delete-only-untagged-versions: false
         continue-on-error: true
+
+      - name: Create issue on conflict
+        if: steps.merge.outputs.merge_status == 'conflict'
+        run: |
+          gh issue create \
+            --title "⚠️ Conflit Sync Upstream Open WebUI - $(date +%Y-%m-%d)" \
+            --body "## ⚠️ Conflit détecté lors de la synchronisation avec open-webui/open-webui
+
+          **Fichiers en conflit:**
+          \`\`\`
+          ${{ steps.merge.outputs.conflicts }}
+          \`\`\`
+
+          **Commits upstream non mergés:** ${{ steps.check.outputs.new_commits }}
+
+          **Backup disponible:**
+          \`ghcr.io/talsommtl/open-webui-backup:${{ steps.dateshort.outputs.date }}\`
+
+          **Workflow Run:** [Voir les détails](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          ### 🔧 Résolution manuelle requise
+
+          \`\`\`bash
+          git fetch upstream
+          git merge upstream/main
+          # Résoudre les conflits
+          git add .
+          git commit
+          git push origin main
+          \`\`\`
+          Une fois résolu, fermez cette issue." \
+            --label "sync-conflict,urgent" \
+            --assignee "christopherquenneville,Franck-Hilotech,EvanTalsom"
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
       
       - name: Summary
         run: |
