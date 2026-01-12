@@ -129,6 +129,7 @@ jobs:
         if: steps.merge.outputs.merge_status == 'conflict'
         run: |
           gh issue create \
+            --repo TalsomMtl/open-webui \
             --title "⚠️ Conflit Sync Upstream Open WebUI - $(date +%Y-%m-%d)" \
             --body "## ⚠️ Conflit détecté lors de la synchronisation avec open-webui/open-webui
           
