@@ -131,7 +131,7 @@ jobs:
           gh issue create \
             --repo TalsomMtl/open-webui \
             --title "⚠️ Conflit Sync Upstream Open WebUI - $(date +%Y-%m-%d)" \
-            --body "## ⚠️ Conflit détecté lors de la synchronisation avec open-webui/open-webui
+            --body "## Conflit détecté lors de la synchronisation avec open-webui/open-webui
           
           **Fichiers en conflit:**
           \`\`\`
