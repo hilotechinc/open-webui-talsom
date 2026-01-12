@@ -156,7 +156,7 @@ jobs:
           \`\`\`
           Une fois résolu, fermez cette issue." \
             --label "sync-conflict,urgent" \
-            --assignee "christopherquenneville,Franck-Hilotech,EvanTalsom"
+            --assignee "Franck-Hilotech,EvanTalsom"
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
       
