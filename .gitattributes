@@ -47,3 +47,6 @@
 # Misc
 *.env text eol=lf
 *.lock text eol=lf
+
+# ignore Talsom sync upstream file
+.github/workflows/sync-upstream.yml merge=ours
