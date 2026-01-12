@@ -86,6 +86,17 @@ jobs:
             ghcr.io/hilotechinc/open-webui-custom:latest
             ghcr.io/hilotechinc/open-webui-talsom:${{ github.sha }}
 
+      - name: Create issue on conflict
+        if: steps.merge.outputs.merge_status == 'conflict'
+        run: |
+          gh issue create \
+            --title "⚠️ Conflit Sync Talsom - $(date +%Y-%m-%d)" \
+            --body "Fichiers: ${{ steps.merge.outputs.conflicts }}" \
+            --label "sync-conflict,urgent" \
+            --assignee "Franck-Hilotech"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }
+
       - name: Summary
         run: |
           echo "## Sync from Talsom Summary" >> $GITHUB_STEP_SUMMARY
