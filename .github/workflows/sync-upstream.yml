@@ -131,21 +131,20 @@ jobs:
           gh issue create \
             --title "⚠️ Conflit Sync Upstream Open WebUI - $(date +%Y-%m-%d)" \
             --body "## ⚠️ Conflit détecté lors de la synchronisation avec open-webui/open-webui
-
+          
           **Fichiers en conflit:**
           \`\`\`
           ${{ steps.merge.outputs.conflicts }}
           \`\`\`
-
+          
           **Commits upstream non mergés:** ${{ steps.check.outputs.new_commits }}
-
-          **Backup disponible:**
-          \`ghcr.io/talsommtl/open-webui-backup:${{ steps.dateshort.outputs.date }}\`
-
+          
+          **Backup disponible:** \`ghcr.io/talsommtl/open-webui-backup:${{ steps.dateshort.outputs.date }}\`
+          
           **Workflow Run:** [Voir les détails](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-
+          
           ### Résolution manuelle requise
-
+          
           \`\`\`bash
           git fetch upstream
           git merge upstream/main
@@ -154,8 +153,10 @@ jobs:
           git commit
           git push origin main
           \`\`\`
-          Une fois résolu, fermez cette issue." \
-            --assignee "franck-hilotech,EvanTalsom"
+          
+          **CC:** @Franck-Hilotech @christopherquenneville @EvanTalsom
+          
+          Une fois résolu, fermez cette issue."
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
       
