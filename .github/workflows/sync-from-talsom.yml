@@ -97,7 +97,7 @@ jobs:
             --title "⚠️ Conflit Sync Talsom - $(date +%Y-%m-%d)" \
             --body "Fichiers: ${{ steps.merge.outputs.conflicts }}" \
             --label "sync-conflict,urgent" \
-            --assignee "Franck-Hilotech"
+            --assignee "Franck-Hilotech, christopherquenneville"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
