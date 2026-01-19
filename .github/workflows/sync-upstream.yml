@@ -112,8 +112,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/talsommtl/open-webui:latest
-            ghcr.io/talsommtl/open-webui:${{ steps.dateshort.outputs.date }}
+            ghcr.io/talsommtl/open-webui-custom:latest
+            ghcr.io/talsommtl/open-webui-custom:${{ steps.dateshort.outputs.date }}
       
       - name: Delete old backup images
         if: steps.merge.outputs.merge_status == 'success'
@@ -167,7 +167,7 @@ jobs:
           if [ "${{ steps.check.outputs.new_commits }}" == "0" ]; then
             echo "Aucun nouveau commit upstream" >> $GITHUB_STEP_SUMMARY
             echo "Image latest mise a jour avec les derniers commits locaux" >> $GITHUB_STEP_SUMMARY
-            echo "Latest: ghcr.io/talsommtl/open-webui:latest" >> $GITHUB_STEP_SUMMARY
+            echo "Latest: ghcr.io/talsommtl/open-webui-custom:latest" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ steps.merge.outputs.merge_status }}" == "success" ]; then
             echo "${{ steps.check.outputs.new_commits }} commits upstream merges avec succes" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
@@ -178,7 +178,7 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Images Docker :" >> $GITHUB_STEP_SUMMARY
             echo "- Backup: ghcr.io/talsommtl/open-webui-backup:${{ steps.dateshort.outputs.date }}" >> $GITHUB_STEP_SUMMARY
-            echo "- Latest: ghcr.io/talsommtl/open-webui:latest" >> $GITHUB_STEP_SUMMARY
+            echo "- Latest: ghcr.io/talsommtl/open-webui-custom:latest" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "cc @christopherquenneville @Franck-Hilotech @EvanTalsom" >> $GITHUB_STEP_SUMMARY
           else
