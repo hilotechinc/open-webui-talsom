@@ -94,10 +94,9 @@ jobs:
         if: steps.merge.outputs.merge_status == 'conflict'
         run: |
           gh issue create \
+            --repo hilotechinc/open-webui-talsom \
             --title "⚠️ Conflit Sync Talsom - $(date +%Y-%m-%d)" \
             --body "Fichiers: ${{ steps.merge.outputs.conflicts }}" \
-            --label "sync-conflict,urgent" \
-            --assignee "Franck-Hilotech, christopherquenneville"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
