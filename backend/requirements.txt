@@ -64,10 +64,7 @@ einops==0.8.2
 
 ftfy==6.3.1
 chardet==5.2.0
-pypdf==6.7.0
-fpdf2==2.8.5
 PyPDF2==3.0.1  # for link extraction
-pymdown-extensions==10.20.1
 pypdf==6.7.5
 fpdf2==2.8.7
 pymdown-extensions==10.21
