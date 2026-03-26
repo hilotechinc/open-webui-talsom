@@ -105,12 +105,9 @@
 	import Tooltip from '../common/Tooltip.svelte';
 	import Sidebar from '../icons/Sidebar.svelte';
 	import Image from '../common/Image.svelte';
-<<<<<<< HEAD
 	import { updateFolderById } from '$lib/apis/folders';
 	import AddLogoTalsom from './addLogoTalsom.svelte';
-=======
 	import { getBanners } from '$lib/apis/configs';
->>>>>>> upstream/main
 
 	export let chatIdProp = '';
 
