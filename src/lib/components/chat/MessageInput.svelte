@@ -100,6 +100,7 @@
 	import InputModal from '../common/InputModal.svelte';
 	import Expand from '../icons/Expand.svelte';
 	import QueuedMessageItem from './MessageInput/QueuedMessageItem.svelte';
+	import TaskList from './Messages/ResponseMessage/TaskList.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -122,6 +123,11 @@
 	export let history;
 	export let taskIds = null;
 
+	$: isActive =
+		(taskIds && taskIds.length > 0) ||
+		(history.currentId && history.messages[history.currentId]?.done != true) ||
+		generating;
+
 	export let prompt = '';
 	export let files = [];
 
@@ -140,6 +146,8 @@
 	export let onQueueSendNow: (id: string) => void = () => {};
 	export let onQueueEdit: (id: string) => void = () => {};
 	export let onQueueDelete: (id: string) => void = () => {};
+
+	export let chatTasks = [];
 
 	let inputContent = null;
 
@@ -336,7 +344,9 @@
 			}
 
 			chatInputElement?.setText(text);
-			chatInputElement?.focus();
+			if (!$showCallOverlay) {
+				chatInputElement?.focus();
+			}
 
 			if (text !== '') {
 				text = await inputVariableHandler(text);
@@ -405,7 +415,7 @@
 	let command = '';
 	export let showCommands = false;
 	$: showCommands =
-		['/', '#', '@', '$'].includes(command?.charAt(0)) || '\\#' === command?.slice(0, 2);
+		['/', '#', '@', '$', ':'].includes(command?.charAt(0)) || '\\#' === command?.slice(0, 2);
 	let suggestions = null;
 
 	let showTools = false;
@@ -486,6 +496,11 @@
 			$models.find((m) => m.id === model)?.info?.meta?.capabilities?.code_interpreter ?? true
 	);
 
+	let terminalCapableModels = [];
+	$: terminalCapableModels = (atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).filter(
+		(model) => $models.find((m) => m.id === model)?.info?.meta?.capabilities?.terminal ?? true
+	);
+
 	let toggleFilters = [];
 	$: toggleFilters = (atSelectedModel?.id ? [atSelectedModel.id] : selectedModels)
 		.map((id) => ($models.find((model) => model.id === id) || {})?.filters ?? [])
@@ -519,6 +534,11 @@
 	// Disable code interpreter when terminal is active (mutually exclusive)
 	$: if ($selectedTerminalId && codeInterpreterEnabled) {
 		codeInterpreterEnabled = false;
+	}
+
+	// Clear selected terminal when model doesn't support terminal
+	$: if ($selectedTerminalId && terminalCapableModels.length === 0) {
+		selectedTerminalId.set(null);
 	}
 
 	const scrollToBottom = () => {
@@ -1031,6 +1051,25 @@
 					insertTextHandler: insertTextAtCursor,
 					onUpload: () => {}
 				})
+			},
+			{
+				char: ':',
+				allowSpaces: false,
+				command: ({ editor, range, props }) => {
+					// Convert the Unicode hex codepoint (e.g. "1F44B") to the actual emoji character (👋)
+					const codepoint = props.id;
+					const emoji = String.fromCodePoint(parseInt(codepoint, 16));
+					editor.chain().focus().deleteRange(range).insertContent(emoji).run();
+				},
+				render: getSuggestionRenderer(CommandSuggestionList, {
+					i18n,
+					onSelect: (e) => {
+						document.getElementById('chat-input')?.focus();
+					},
+
+					insertTextHandler: insertTextAtCursor,
+					onUpload: () => {}
+				})
 			}
 		];
 		loaded = true;
@@ -1217,6 +1256,13 @@
 							class="hidden"
 							on:click={() => createMessagePair(prompt)}
 						/>
+
+						<!-- Task list display -->
+						{#if isActive && chatTasks.length > 0}
+							<div class="mx-1">
+								<TaskList tasks={chatTasks} />
+							</div>
+						{/if}
 
 						<!-- Queued messages display -->
 						{#if messageQueue.length > 0}
@@ -1712,7 +1758,19 @@
 												<Tooltip content={filter?.name} placement="top">
 													<button
 														on:click|preventDefault={() => {
-															selectedFilterIds = selectedFilterIds.filter((id) => id !== filterId);
+															if (
+																filter?.has_user_valves &&
+																($_user?.role === 'admin' ||
+																	($_user?.permissions?.chat?.valves ?? true))
+															) {
+																selectedValvesType = 'function';
+																selectedValvesItemId = filterId;
+																showValvesModal = true;
+															} else {
+																selectedFilterIds = selectedFilterIds.filter(
+																	(id) => id !== filterId
+																);
+															}
 														}}
 														type="button"
 														class="group p-[7px] flex gap-1.5 items-center text-sm rounded-full transition-colors duration-300 focus:outline-hidden max-w-full overflow-hidden {selectedFilterIds.includes(
@@ -1735,7 +1793,18 @@
 														{:else}
 															<Sparkles className="size-4" strokeWidth="1.75" />
 														{/if}
-														<div class="hidden group-hover:block">
+														<!-- svelte-ignore a11y-click-events-have-key-events -->
+														<!-- svelte-ignore a11y-no-static-element-interactions -->
+														<div
+															class="hidden group-hover:block"
+															on:click={(e) => {
+																e.stopPropagation();
+																e.preventDefault();
+																selectedFilterIds = selectedFilterIds.filter(
+																	(id) => id !== filterId
+																);
+															}}
+														>
 															<XMark className="size-4" strokeWidth="1.75" />
 														</div>
 													</button>
@@ -1829,7 +1898,7 @@
 								</div>
 
 								<div class="self-end flex space-x-1 mr-1 shrink-0 gap-[0.5px]">
-									{#if (taskIds && taskIds.length > 0) || (history.currentId && history.messages[history.currentId]?.done != true) || generating}
+									{#if isActive && prompt === '' && files.length === 0}
 										<div class=" flex items-center">
 											<Tooltip content={$i18n.t('Stop')}>
 												<button
@@ -1873,7 +1942,10 @@
 
 										{#if !history?.currentId || history.messages[history.currentId]?.done == true}
 											<!-- Terminal Server Selector -->
-											{#if ($terminalServers ?? []).length > 0 || ($settings?.terminalServers ?? []).some((s) => s.url)}
+											{@const hasDirectToolServerAccess =
+												$_user?.role === 'admin' ||
+												($_user?.permissions?.features?.direct_tool_servers ?? true)}
+											{#if terminalCapableModels.length > 0 && (($terminalServers ?? []).some((t) => t.id) || (hasDirectToolServerAccess && (($terminalServers ?? []).some((t) => !t.id) || ($settings?.terminalServers ?? []).some((s) => s.url))))}
 												<TerminalMenu bind:show={showTerminalMenu} />
 											{/if}
 
